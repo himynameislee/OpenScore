@@ -10,6 +10,7 @@ The [project README](../README.md) is the short version. These pages are the lon
 
 | Page | What it covers |
 |---|---|
+| [FAQ](faq.md) | Short answers to common questions: what OpenScore checks, how the score works, safety, permission, privacy and installing |
 | [Getting started](getting-started.md) | Installing on Linux and Windows, the standalone binaries, your first scan, where the output goes |
 | [Modes, scope and authorization](modes-and-scope.md) | Passive, light and active: what each one touches, what counts as in scope, the authorization gate and the audit log |
 | [Reading the report](reading-the-report.md) | Every section of the HTML report, evidence exhibits, Coverage gap boxes, Module notes, the scan-to-scan diff |
