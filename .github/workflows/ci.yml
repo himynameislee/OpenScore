@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          pip install -r requirements.txt pytest pyflakes
+          # Linux runs the lab scan with nmap, Windows with the built-in scanner: both paths covered.
+          if [ "$RUNNER_OS" = "Linux" ]; then python -m playwright install --with-deps chromium
+            sudo apt-get install -y -qq nmap
+          else python -m playwright install chromium; fi
+      - name: Lint
+        run: python -m pyflakes openscore tests
+      - name: Unit tests
+        run: python -m pytest -q tests
+
+      - name: End-to-end scan of the lab target
+        run: |
+          # Output to a file: on Windows a background job holding the step's stdout can hang the step.
+          python tests/fake_target.py > fake_target.log 2>&1 &
+          python - <<'PY'
+          import socket, sys, time
+          for _ in range(60):
+              try:
+                  socket.create_connection(("127.0.0.1", 8443), timeout=1).close()
+                  break
+              except OSError:
+                  time.sleep(0.5)
+          else:
+              print(open("fake_target.log", encoding="utf-8", errors="replace").read())
+              sys.exit("lab target did not start on :8443")
+          PY
+          python -m openscore lab.invalid --no-discovery \
+            --url https://127.0.0.1:8443/ http://127.0.0.1:8080/ --ips 127.0.0.1/32 \
+            --active --authorization "CI lab" -y --delay 0 --timeout 5 --no-nuclei -o ci-reports
+          python - <<'PY'
+          import glob, json, sys
+          r = json.load(open(glob.glob("ci-reports/*.json")[0], encoding="utf-8"))
+          got = {f["check_id"] for f in r["findings"]}
+          expected = {"exp_git", "exp_env", "net_exposed_datastore", "net_exposed_rdp",
+                      "tls_cert_untrusted", "http_hsts_missing", "http_cors_reflect", "sw_eol"}
+          missing = expected - got
+          print("grade:", r["overall"]["grade"], "findings:", len(r["findings"]))
+          print("module notes:", json.dumps(r.get("module_status"), indent=1))
+          if missing:
+              print("--- fake_target.log ---")
+              print(open("fake_target.log", encoding="utf-8", errors="replace").read()[-4000:])
+              sys.exit(f"Regression - expected findings missing: {sorted(missing)}")
+          no_proof = [f["check_id"] for f in r["findings"] if f["severity"] != "pass" and not f.get("proof")]
+          if no_proof:
+              sys.exit(f"Findings without an evidence exhibit: {no_proof}")
+          dump = json.dumps(r)
+          for secret in ("hunter2", "base64:abc"):
+              if secret in dump:
+                  sys.exit(f"Secret {secret!r} leaked into report data")
+          imgs = [f["check_id"] for f in r["findings"] if f.get("proof_image")]
+          print("evidence PNGs:", len(imgs))
+          if len(imgs) < 10:
+              sys.exit("Evidence PNG export not working")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab-report-${{ matrix.os }}-${{ matrix.python }}
+          path: ci-reports/
+
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run install_windows.ps1 (with tool downloads)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}   # nuclei/subfinder release lookups; avoids the anonymous API rate limit
+        # Deliberately Windows PowerShell 5.1 (what most users have), not pwsh 7.
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\install_windows.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Launcher works
+        shell: cmd
+        run: openscore.bat --version
+
+  debian-package:
+    # Build the .deb the way Kali/Debian would, lint it, install it and run its autopkgtests.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packaging toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends build-essential dpkg-dev debhelper dh-python \
+            pybuild-plugin-pyproject python3-all python3-setuptools help2man lintian fakeroot git \
+            python3-certifi python3-cryptography python3-dnspython python3-jinja2 python3-markupsafe \
+            python3-pytest python3-requests python3-urllib3
+      - name: Build
+        run: dpkg-buildpackage -us -uc -b
+      - name: Lintian
+        # kali-dev is only a known distribution on Kali itself
+        run: lintian --fail-on error,warning --suppress-tags bad-distribution-in-changes-file ../openscore_*_amd64.changes
+      - name: Install and run the package tests (debian/tests)
+        run: |
+          sudo apt-get install -y -qq ../openscore_*_all.deb
+          for t in smoke lab-scan; do
+            T=$(mktemp -d); cp -r tests "$T/"
+            (cd "$T" && AUTOPKGTEST_TMP="$T" sh "$GITHUB_WORKSPACE/debian/tests/$t")
+          done

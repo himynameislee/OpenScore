@@ -1,0 +1,8 @@
+dnspython>=2.4
+requests>=2.31
+cryptography>=41
+jinja2>=3.1
+markupsafe
+urllib3
+certifi
+playwright>=1.40   # optional: screenshot evidence (then: python -m playwright install chromium)

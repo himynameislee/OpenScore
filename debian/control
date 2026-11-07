@@ -1,0 +1,57 @@
+Source: openscore
+Section: net
+Priority: optional
+Maintainer: Kali Developers <devel@kali.org>
+Uploaders: Lee <himynameislee@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-sequence-python3,
+               git <!nocheck>,
+               help2man,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-certifi,
+               python3-cryptography,
+               python3-dnspython,
+               python3-jinja2,
+               python3-markupsafe,
+               python3-pytest <!nocheck>,
+               python3-requests,
+               python3-setuptools,
+               python3-urllib3
+Standards-Version: 4.7.0
+Homepage: https://github.com/himynameislee/OpenScore
+Rules-Requires-Root: no
+
+Package: openscore
+Architecture: all
+Depends: ${misc:Depends},
+         ${python3:Depends}
+Recommends: nmap,
+            nuclei,
+            subfinder,
+            testssl.sh
+Suggests: python3-playwright
+Description: external security rating with evidence and remediation steps
+ OpenScore looks at an organization from the outside, the way an attacker
+ would, and grades it A-F across eight factors: email security, DNS health,
+ TLS/certificates, application security, network exposure, patching cadence,
+ IP reputation and information leakage.
+ .
+ Every finding comes with the evidence that triggered it, a command to verify
+ it by hand, and remediation steps. The result is a single self-contained
+ HTML report (plus JSON) with PNG evidence exhibits for tickets, a baseline
+ diff against the previous scan, and a suppressions file for triaged false
+ positives, accepted risks and compensating controls.
+ .
+ It serves defenders, vulnerability management and the external
+ attack-surface review of authorized penetration tests. It identifies and
+ documents issues; it never exploits them (no exploitation, credential
+ guessing or payload injection).
+ .
+ Passive and light checks only use public data and normal browser-like
+ requests. Active checks (port scan, path probes, CORS, nuclei with safe
+ templates, testssl.sh) require --active plus a written authorization
+ reference and a scope confirmation, stay in scope, and are audit-logged.
+ .
+ nmap, nuclei, subfinder and testssl.sh are used when installed;
+ python3-playwright adds page screenshots to the evidence.

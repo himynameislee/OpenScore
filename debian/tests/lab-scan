@@ -1,0 +1,27 @@
+#!/bin/sh
+# Light scan of the bundled lab target (localhost only) with the installed openscore.
+set -e
+WORK="${AUTOPKGTEST_TMP:-$(mktemp -d)}"
+python3 tests/fake_target.py > "$WORK/target.log" 2>&1 &
+TARGET=$!
+trap 'kill $TARGET 2>/dev/null || true' EXIT
+python3 - <<'PY'
+import socket, sys, time
+for _ in range(60):
+    try:
+        socket.create_connection(("127.0.0.1", 8443), timeout=1).close(); sys.exit(0)
+    except OSError:
+        time.sleep(0.5)
+sys.exit("lab target did not start")
+PY
+cd "$WORK"
+openscore lab.invalid --no-discovery --url https://127.0.0.1:8443/ http://127.0.0.1:8080/ \
+    --no-screenshots --no-baseline -o reports
+python3 - <<'PY'
+import glob, json
+r = json.load(open(glob.glob("reports/*.json")[0], encoding="utf-8"))
+assert glob.glob("reports/*.html"), "no HTML report"
+ids = {f["check_id"] for f in r["findings"]}
+assert "http_hsts_missing" in ids, sorted(ids)
+print("lab scan OK:", r["overall"]["grade"], len(r["findings"]), "findings")
+PY

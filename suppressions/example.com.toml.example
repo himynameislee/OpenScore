@@ -1,0 +1,31 @@
+# Copy to suppressions/<domain>.toml (e.g. suppressions/contoso.com.toml).
+# OpenScore loads it automatically for that domain, or pass --suppressions <file>.
+#
+# status:
+#   false_positive        – the finding is wrong (expires optional)
+#   accepted_risk         – real, but the business accepts it (expires REQUIRED)
+#   compensating_control  – real, but mitigated elsewhere (expires REQUIRED)
+#
+# Tip: every finding in the HTML report has a "Mark false positive / accepted risk" button
+# that copies a ready-made entry to your clipboard. Or run with --emit-suppressions.
+
+[[suppress]]
+check = "http_cookie_httponly"
+asset = "portal.example.com"
+title_contains = "XSRF-TOKEN"
+status = "false_positive"
+reason = "Angular reads the XSRF-TOKEN cookie by design; it is not a session cookie"
+approved_by = "J. Smith (IT Security)"
+
+[[suppress]]
+check = "net_exposed_ssh"
+asset = "203.0.113.10"
+status = "compensating_control"
+reason = "SFTP for payroll vendor; key-only auth, firewall allows vendor IPs only"
+approved_by = "J. Smith (IT Security)"
+expires = 2027-06-30
+
+[[suppress]]
+check = "email_dkim_not_found"
+status = "false_positive"
+reason = "Uses custom selector 'acme2026' — re-run with --dkim-selectors acme2026 instead"

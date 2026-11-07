@@ -1,0 +1,7 @@
+Tests: smoke
+Depends: openscore
+Restrictions: allow-stderr
+
+Tests: lab-scan
+Depends: openscore, python3-cryptography
+Restrictions: allow-stderr

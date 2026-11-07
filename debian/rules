@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=openscore
+# Run the test suite against the built package (tests are copied in, then removed again so they're
+# never installed). Screenshot tests need a browser, which buildds don't have.
+export PYBUILD_BEFORE_TEST=cp -r {dir}/tests {build_dir}
+export PYBUILD_TEST_ARGS=-p no:cacheprovider -k "not screenshot" tests
+export PYBUILD_AFTER_TEST=rm -rf {build_dir}/tests {build_dir}/.pytest_cache
+
+%:
+	dh $@ --buildsystem=pybuild
+
+execute_after_dh_auto_install:
+	# the license is already in debian/copyright
+	find debian/openscore -path '*.dist-info/LICENSE*' -delete
+	# man page from -h, generated from the installed entry point so NAME reads "openscore"
+	PYTHONPATH=$(CURDIR) help2man --no-info --no-discard-stderr \
+	    --name="external security rating with evidence and remediation steps" \
+	    --version-string="$$(dpkg-parsechangelog -S Version | sed 's/-[^-]*$$//')" \
+	    --output=debian/openscore.1 debian/openscore/usr/bin/openscore
+
+execute_after_dh_clean:
+	rm -f debian/openscore.1

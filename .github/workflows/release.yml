@@ -1,0 +1,67 @@
+name: Release
+
+# Push a tag like v0.2.0 to build standalone binaries and attach them to a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: openscore-windows-x64.exe
+            built: dist/openscore.exe
+          - os: ubuntu-latest
+            artifact: openscore-linux-x64
+            built: dist/openscore
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller
+      # Playwright is left out of the single-file binary (it needs a downloaded browser);
+      # screenshots are available when running from source.
+      - run: pyinstaller --onefile --name openscore --exclude-module playwright openscore_entry.py
+      - run: ${{ matrix.built }} --version
+      - run: ${{ matrix.built }} -h > /dev/null
+      # Smoke test the frozen binary on the lab target (light mode, no network beyond localhost):
+      # catches modules or data files PyInstaller left out, which --version alone wouldn't.
+      - name: Lab scan with the built binary
+        run: |
+          python tests/fake_target.py > fake_target.log 2>&1 &
+          python - <<'PY'
+          import socket, sys, time
+          for _ in range(60):
+              try:
+                  socket.create_connection(("127.0.0.1", 8443), timeout=1).close(); break
+              except OSError:
+                  time.sleep(0.5)
+          else:
+              sys.exit("lab target did not start")
+          PY
+          ${{ matrix.built }} lab.invalid --no-discovery --url https://127.0.0.1:8443/ http://127.0.0.1:8080/ \
+            --no-screenshots --no-baseline -o smoke-reports
+          python - <<'PY'
+          import glob, json, sys
+          r = json.load(open(glob.glob("smoke-reports/*.json")[0], encoding="utf-8"))
+          assert glob.glob("smoke-reports/*.html"), "no HTML report"
+          ids = {f["check_id"] for f in r["findings"]}
+          assert "http_hsts_missing" in ids, sorted(ids)
+          print("binary smoke test OK:", r["overall"]["grade"], len(r["findings"]), "findings")
+          PY
+      - run: mv ${{ matrix.built }} ${{ matrix.artifact }}
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}   # v1.0.0-rc1 etc. are marked pre-release

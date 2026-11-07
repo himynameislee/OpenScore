@@ -1,0 +1,36 @@
+# Scan output — contains client data. Never commit.
+reports/
+*.audit.log
+*.suppressions-template.toml
+# Real suppression files are client-specific; only the example is tracked
+suppressions/*.toml
+!suppressions/example.com.toml.example
+
+# Bundled Windows tools
+tools/
+
+# Python / build
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.spec
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets
+.env
+*.key
+
+# Debian package build output (dpkg-buildpackage -us -uc -b)
+.pybuild/
+debian/openscore/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*.debhelper.log
+debian/openscore.1
+fake_target.log
