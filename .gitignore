@@ -34,3 +34,7 @@ debian/*.substvars
 debian/*.debhelper.log
 debian/openscore.1
 fake_target.log
+
+# Website build output (website/build.py --out)
+_site/
+sample/

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}OpenScore FAQ: security rating, scanning, privacy and install{% endblock %}
+{% block description %}Answers about OpenScore, the free, open-source external security rating tool: what it checks, how the score works, permission to scan, safety, privacy and installing.{% endblock %}
+{% block main %}
+<div class="wrap faq-page">
+  <div class="prose">
+    <h1>OpenScore FAQ</h1>
+    <p class="lead">Answers to common questions about OpenScore, the free, open-source external
+      security rating tool. For everything else, see the
+      <a href="{{ repo }}/tree/main/docs">documentation</a>.</p>
+    <nav class="toc" aria-label="FAQ sections">
+      <ul>
+        {% for s in sections %}
+        <li><a href="#{{ s.id }}">{{ s.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+  {% for s in sections %}
+  <section class="prose faq-section" aria-labelledby="{{ s.id }}">
+    <h2 id="{{ s.id }}">{{ s.title }}</h2>
+    {% for item in s["items"] %}
+    <div class="faq-item">
+      <h3 id="{{ item.id }}"><a class="anchor" href="#{{ item.id }}">{{ item.q }}</a></h3>
+      <p>{{ item.a }}</p>
+    </div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

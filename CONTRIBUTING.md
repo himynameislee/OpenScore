@@ -30,6 +30,18 @@ python -m openscore lab.invalid --no-discovery --url https://127.0.0.1:8443/ htt
 5. **Docs** — run `python3 -m openscore.docgen` to regenerate `docs/check-catalog.md` (and
    `docs/command-reference.md` after changing an option). A test fails if they're out of date.
 
+## Website and FAQ
+
+The website (`website/`) is published to GitHub Pages by `.github/workflows/pages.yml` on every
+push to `main`. The FAQ lives in `website/faq.py`: edit it there, then run
+`python3 website/build.py --faq-md` to regenerate `docs/faq.md` (a test fails if it's out of
+date). To preview the site locally:
+
+```bash
+python3 website/build.py --out _site --base-url http://localhost:8000/
+cd _site && python3 -m http.server 8000
+```
+
 ## Ground rules
 
 * No exploitation, credential guessing, or payload injection — ever.

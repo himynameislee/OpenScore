@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}OpenScore: free, open-source external security rating{% endblock %}
+{% block description %}OpenScore grades a domain A to F across eight security factors, from the outside, with the evidence, a verify command and the fix for every finding. Free and open source.{% endblock %}
+{% block main %}
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>The attacker's view, open to everyone.</h1>
+      <p class="lead">OpenScore is a free, open-source tool that rates an organization's external
+        security the way an attacker sees it. It grades a domain from A to F across eight factors,
+        and every finding comes with its evidence, a command to verify it and the fix.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="{{ repo }}">Get OpenScore on GitHub</a>
+        {% if has_sample %}
+        <a class="btn" href="{{ base }}sample-report.html">View the sample report</a>
+        {% else %}
+        <a class="btn" href="{{ repo }}/releases">Download a release</a>
+        {% endif %}
+      </div>
+      <p class="small">MIT licensed. Runs on Linux and Windows. No account needed.</p>
+    </div>
+    <figure class="hero-figure">
+      {{ aperture }}
+      <figcaption>Each segment of the mark is one scored factor; select one to see what it
+        covers. The block in the middle is the evidence that backs every point of the
+        grade.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="evidence">
+  <div class="wrap two-col">
+    <div class="prose">
+      <h2 id="evidence">Every finding shows its work</h2>
+      <p>A score you can't check is hard to act on. OpenScore attaches the raw response, DNS
+        answer or certificate to each finding, marks the line that triggered it, and tells you
+        how to confirm it yourself and how to fix it.</p>
+      <p>When something isn't a real problem for you, mark it as a false positive, an accepted
+        risk or a compensating control. It leaves the score, and the report keeps a record of
+        who decided and when to review it.</p>
+    </div>
+    <figure class="exhibit" aria-label="Example finding from an OpenScore report">
+      <div class="exhibit-head">
+        <span class="sev sev-{{ finding.severity }}">{{ finding.severity|capitalize }}</span>
+        <span class="exhibit-title">{{ finding.title }}</span>
+        <span class="exhibit-asset">{{ finding.asset }}</span>
+      </div>
+      <pre class="exhibit-body"><code>{% for text, cls in finding.lines %}<span class="ln{% if cls %} ln-{{ cls }}{% endif %}">{{ text }}</span>{% endfor %}</code></pre>
+      <dl class="exhibit-notes">
+        <div><dt>Why it matters</dt><dd>{{ finding.description }}</dd></div>
+        <div><dt>How to verify</dt><dd>{{ finding.verify }}</dd></div>
+        <div><dt>How to fix</dt><dd>{{ finding.remediation }}</dd></div>
+      </dl>
+    </figure>
+  </div>
+</section>
+
+<section aria-labelledby="factors">
+  <div class="wrap">
+    <div class="prose">
+      <h2 id="factors">Eight factors, one grade</h2>
+      <p>Each factor is scored from 0 to 100 and weighted into the overall grade. Names hosted by a
+        SaaS provider are reported but kept out of the score, because the provider controls those
+        settings.</p>
+    </div>
+    <ul class="factors">
+      {% for f in factors %}
+      <li id="f-{{ f.key }}" style="--seg: {{ f.color }}">
+        <h3>{{ f.name }}</h3>
+        <p>{{ f.desc }}</p>
+        <p class="small">{{ f.checks }} checks, weight {{ f.weight }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+    <p><a href="{{ docs }}check-catalog.md">See every check in the check catalog</a></p>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="modes">
+  <div class="wrap">
+    <div class="prose">
+      <h2 id="modes">You decide how far it goes</h2>
+      <p>OpenScore has three modes, each one closer to the target than the last. Passive and light
+        run by default. Active checks are for systems you own or have written permission to
+        test.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="modes">
+        <thead><tr><th scope="col">Mode</th><th scope="col">What it does</th><th scope="col">Contact with the target</th><th scope="col">To turn it on</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Passive</th><td data-label="What it does">Reads DNS and email records, certificate logs, reputation lists and Shodan data</td><td data-label="Contact with the target">None</td><td data-label="To turn it on">Always on</td></tr>
+          <tr><th scope="row">Light</th><td data-label="What it does">Loads the home page, reads headers and cookies, checks the TLS certificate and protocols</td><td data-label="Contact with the target">What any visitor sends</td><td data-label="To turn it on">Always on</td></tr>
+          <tr><th scope="row">Active</th><td data-label="What it does">Port scan, path probes, CORS, nuclei safe templates, testssl.sh</td><td data-label="Contact with the target">Probes, inside the scope you set</td><td data-label="To turn it on"><code>--active</code>, an <code>--authorization</code> reference and a typed scope confirmation</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">Every active action is written to an audit log. OpenScore finds and documents
+      issues; it never exploits them, guesses credentials or submits forms.
+      <a href="{{ docs }}modes-and-scope.md">How scope and authorization work</a></p>
+  </div>
+</section>
+
+<section aria-labelledby="install">
+  <div class="wrap">
+    <div class="prose">
+      <h2 id="install">Install</h2>
+      <p>OpenScore needs Python 3.11 or later. nmap, nuclei, testssl.sh and subfinder are used when
+        they're installed; without them, OpenScore uses its built-in checks.</p>
+    </div>
+    <div class="installs">
+      <div class="install">
+        <h3>Linux</h3>
+        <pre class="cmd"><code>git clone {{ repo }}.git
+cd OpenScore &amp;&amp; ./install_linux.sh
+python3 -m openscore example.com --open</code></pre>
+      </div>
+      <div class="install">
+        <h3>Windows 10 or 11</h3>
+        <pre class="cmd"><code>git clone {{ repo }}.git
+cd OpenScore
+powershell -ExecutionPolicy Bypass -File .\install_windows.ps1
+.\openscore.bat example.com --open</code></pre>
+      </div>
+      <div class="install install-wide">
+        <h3>Standalone binary</h3>
+        <p>Download <code>openscore-linux-x64</code> or <code>openscore-windows-x64.exe</code>,
+          check it against <code>SHA256SUMS</code>, and run it. No Python needed; screenshots in
+          the evidence need the source install.</p>
+        <p><a href="{{ repo }}/releases">Go to releases</a></p>
+      </div>
+    </div>
+    <p class="prose"><a href="{{ docs }}getting-started.md">Getting started guide</a></p>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="questions">
+  <div class="wrap">
+    <div class="prose">
+      <h2 id="questions">Common questions</h2>
+      <dl class="qa">
+        {% for item in preview %}
+        <div>
+          <dt>{{ item.q }}</dt>
+          <dd>{{ item.a }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+      <p><a href="{{ base }}faq/">Read all {{ faq_count }} answers in the FAQ</a></p>
+    </div>
+  </div>
+</section>
+{% endblock %}

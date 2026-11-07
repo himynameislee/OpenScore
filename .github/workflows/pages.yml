@@ -1,0 +1,64 @@
+name: Website
+
+# Builds the OpenScore website (website/) and publishes it to GitHub Pages.
+# One-time setup: Settings > Pages > Build and deployment > Source: GitHub Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python website/build.py --check
+      # Sample report: an authorized active scan of the deliberately misconfigured lab target.
+      - name: Sample report
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq nmap testssl.sh
+          python tests/fake_target.py > fake_target.log 2>&1 &
+          python - <<'PY'
+          import socket, sys, time
+          for _ in range(60):
+              try:
+                  socket.create_connection(("127.0.0.1", 8443), timeout=1).close(); break
+              except OSError:
+                  time.sleep(0.5)
+          else:
+              sys.exit("lab target did not start")
+          PY
+          python -m openscore lab.invalid --client "Acme Lab (deliberately misconfigured test server)" \
+            --no-discovery --url https://127.0.0.1:8443/ http://127.0.0.1:8080/ --ips 127.0.0.1/32 \
+            --active --authorization "Local lab test" -y --delay 0 --timeout 5 --no-nuclei \
+            --no-screenshots --no-baseline -o sample
+      - id: pages
+        uses: actions/configure-pages@v6
+      - run: python website/build.py --out _site --base-url "${{ steps.pages.outputs.base_url }}/" --sample sample/*.html
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

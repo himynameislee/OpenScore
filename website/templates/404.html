@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Page not found: OpenScore{% endblock %}
+{% block description %}This page doesn't exist on the OpenScore site.{% endblock %}
+{% block robots %}<meta name="robots" content="noindex">{% endblock %}
+{% block main %}
+<div class="wrap prose notfound">
+  <h1>This page doesn't exist</h1>
+  <p class="lead">The link may be old or mistyped. Go to the <a href="{{ base }}">OpenScore home
+    page</a>, read the <a href="{{ base }}faq/">FAQ</a>, or browse the
+    <a href="{{ repo }}/tree/main/docs">documentation</a>.</p>
+</div>
+{% endblock %}

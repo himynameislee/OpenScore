@@ -231,7 +231,7 @@ Exhibits are drawn in the HTML report and exported as **PNG files** (`<report>-e
 
 ## Documentation
 
-Questions? Start with the **[FAQ](docs/faq.md)**. The full documentation is in **[docs/](docs/README.md)**: getting started, modes and scope,
+The [OpenScore website](https://himynameislee.github.io/OpenScore/) has a short overview and a sample report. Questions? Start with the **[FAQ](docs/faq.md)**. The full documentation is in **[docs/](docs/README.md)**: getting started, modes and scope,
 reading the report, the scoring methodology, hosting classification, data sources,
 troubleshooting, performance tuning, tracking findings with Claude, safe practice targets, and
 the generated [command reference](docs/command-reference.md) and

@@ -1,3 +1,5 @@
+<!-- Generated from website/faq.py by `python3 website/build.py --faq-md`. Don't edit by hand. -->
+
 # OpenScore FAQ
 
 Answers to common questions about OpenScore, the free, open-source external security rating tool. For the full documentation, see the [docs index](README.md).
@@ -68,7 +70,7 @@ Clone the repository and run the installer for your platform, or download a stan
 
 ### What operating systems does OpenScore support?
 
-OpenScore runs on Linux and Windows, with Python 3.11 or later or as a standalone binary. It's tested on Ubuntu and Windows in CI and used on Kali Linux. The repository includes Debian packaging, so you can build a `.deb` for Debian-based systems.
+OpenScore runs on Linux and Windows, with Python 3.11 or later or as a standalone binary. Every change is tested on Linux and Windows. The repository includes Debian packaging, so you can build a `.deb` for Debian-based distributions.
 
 ### Which tools does OpenScore use?
 
