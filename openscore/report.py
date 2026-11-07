@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import html
 import json
 import os
@@ -39,6 +40,14 @@ def build_result(ctx, assessed: set[str]) -> dict:
                 ip_hosts[d["asset"]] = ctx.hosts_on_ip(d["asset"])
             if ip_hosts[d["asset"]]:
                 d["hosts"] = ip_hosts[d["asset"]]
+    # Fields for ticketing/trackers built from the JSON: a stable key, and the same why/verify/fix
+    # text the HTML report shows (knowledge-base text only; evidence stays in "evidence"/"proof").
+    for d in findings:
+        meta = kb.get(d["check_id"])
+        d["key"] = finding_key(d)
+        d["description"] = meta.get("description", "")
+        d["remediation"] = meta.get("remediation", "")
+        d["verify"] = verify_text(meta, d, ctx.domain)
     return {
         "tool": "OpenScore", "version": __version__,
         "domain": ctx.domain, "client": ctx.cfg.client or ctx.domain,
@@ -87,7 +96,17 @@ def diff(result: dict, baseline: dict, baseline_path: str = "") -> dict:
     }
 
 
-def _verify(meta: dict, entry: dict, domain: str) -> str:
+def finding_key(f: dict) -> str:
+    """Stable ID for one finding across scans: same check, asset and title -> same key.
+
+    The scan-to-scan diff uses the same identity, so a tracker keyed on this stays in step with
+    the report's "new" and "resolved" lists."""
+    raw = "\x1f".join((f["check_id"], f["asset"], f["title"]))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def verify_text(meta: dict, entry: dict, domain: str) -> str:
+    """The KB verify command with {url}/{asset}/{domain}/{template} filled in (plain text)."""
     v = meta.get("verify", "")
     if not v:
         return ""
@@ -97,7 +116,11 @@ def _verify(meta: dict, entry: dict, domain: str) -> str:
     if "{template}" in v:       # nuclei findings: evidence starts with "<template-id>: <matched>"
         t = re.match(r"([A-Za-z0-9_.-]+): ", entry.get("evidence", ""))
         v = v.replace("{template}", t.group(1) if t else "<template-id>")
-    return _md(v.replace("{url}", url).replace("{asset}", asset).replace("{domain}", domain))
+    return v.replace("{url}", url).replace("{asset}", asset).replace("{domain}", domain)
+
+
+def _verify(meta: dict, entry: dict, domain: str) -> str:
+    return _md(verify_text(meta, entry, domain))
 
 
 # Triage buttons in the HTML report: status -> (button label, default review period in days)

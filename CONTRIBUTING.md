@@ -27,6 +27,8 @@ python -m openscore lab.invalid --no-discovery --url https://127.0.0.1:8443/ htt
    and call `ctx.audit_log()`.
 4. **Tests** — add a unit test (see `tests/test_features.py`) and, if possible, plant the issue
    in `tests/fake_target.py` and assert it in CI.
+5. **Docs** — run `python3 -m openscore.docgen` to regenerate `docs/check-catalog.md` (and
+   `docs/command-reference.md` after changing an option). A test fails if they're out of date.
 
 ## Ground rules
 

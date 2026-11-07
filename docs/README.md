@@ -19,14 +19,18 @@ The [project README](../README.md) is the short version. These pages are the lon
 | [Data sources and network use](data-sources.md) | Every outside service OpenScore contacts, and the optional API keys |
 | [Troubleshooting](troubleshooting.md) | Common problems and what to do about them |
 | [Practice targets](practice-targets.md) | Where to try OpenScore safely without scanning someone who hasn't agreed to it |
+| [Performance tuning](performance.md) | Where the time goes in an active scan, what to expect on large estates, and the options that trade speed for coverage |
+| [Tracking findings with Claude](tracking-findings.md) | Turning the JSON report into a shared tracker, keeping it current after rescans, and what to check before uploading a report anywhere |
 
-## Coming before 1.0
+## Reference
 
-- **Command reference:** every option, generated from the program itself so it can't drift.
-- **Check catalog:** every check with its factor, severity, trigger, verify command and fix,
-  generated from the knowledge base.
-- **Performance tuning:** nuclei and testssl.sh speed, timeouts and what to expect on large estates.
-- **Tracking findings with Claude:** building a shared tracker from the JSON report.
+These pages are generated from the program itself (`python3 -m openscore.docgen`), so they can't
+drift from it.
+
+| Page | What it covers |
+|---|---|
+| [Command reference](command-reference.md) | Every command-line option |
+| [Check catalog](check-catalog.md) | Every check, with its factor, default severity, why it matters, how to verify it and how to fix it |
 
 ## Contributing
 

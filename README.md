@@ -103,6 +103,13 @@ Nmap on Windows needs [Npcap](https://npcap.com); without it, OpenScore falls ba
 Download `openscore-windows-x64.exe` or `openscore-linux-x64` from [Releases](../../releases).
 The standalone binaries don't include screenshot evidence; install from source for that.
 To use nuclei or subfinder with it, put their executables in a `tools` folder next to the binary.
+Check the download against `SHA256SUMS` on the same release (`sha256sum -c SHA256SUMS --ignore-missing`;
+PowerShell: `Get-FileHash openscore-windows-x64.exe`). Releases are immutable and come with a
+GitHub release attestation.
+
+Each release also has `openscore-sample-report.html`: an active scan of the deliberately
+misconfigured lab target, built by the same release run, so you can see a full report before
+scanning anything.
 
 All external tools are optional; OpenScore uses them when present.
 
@@ -226,7 +233,9 @@ Exhibits are drawn in the HTML report and exported as **PNG files** (`<report>-e
 
 The full documentation is in **[docs/](docs/README.md)**: getting started, modes and scope,
 reading the report, the scoring methodology, hosting classification, data sources,
-troubleshooting and safe practice targets.
+troubleshooting, performance tuning, tracking findings with Claude, safe practice targets, and
+the generated [command reference](docs/command-reference.md) and
+[check catalog](docs/check-catalog.md).
 
 ## Development
 

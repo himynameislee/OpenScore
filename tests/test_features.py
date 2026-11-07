@@ -666,6 +666,39 @@ def test_distro_frozen_versions_get_a_note_not_a_downgrade():
     epss = next(f for f in ctx.findings if f.check_id == "vuln_high_epss")
     assert "RHEL 8 ships" in epss.evidence
 
+
+def test_json_tracker_fields():
+    ctx = make_ctx()
+    ctx.cfg.client, ctx.cfg.authorization = "Example Inc", None
+    ctx.add("http_hsts_missing", "www.example.com", "https://www.example.com/ no Strict-Transport-Security")
+    ctx.add("http_hsts_missing", "app.example.com", "https://app.example.com/ no Strict-Transport-Security")
+    f = report.build_result(ctx, set(scoring.FACTORS))["findings"]
+    by_asset = {x["asset"]: x for x in f}
+    w = by_asset["www.example.com"]
+    assert w["remediation"] == kb.CHECKS["http_hsts_missing"]["remediation"]
+    assert w["description"] == kb.CHECKS["http_hsts_missing"]["description"]
+    assert "https://www.example.com/" in w["verify"] and "{url}" not in w["verify"]   # placeholders filled
+    assert "<code>" not in w["verify"]                                     # plain text, not HTML
+    # stable across scans, distinct per asset
+    again = report.build_result(ctx, set(scoring.FACTORS))["findings"]
+    assert {x["key"] for x in again} == {x["key"] for x in f}
+    assert w["key"] != by_asset["app.example.com"]["key"] and len(w["key"]) == 16
+
+
+def test_generated_docs_up_to_date():
+    from openscore import docgen
+    docs = os.path.join(os.path.dirname(__file__), "..", "docs")
+    if not os.path.isdir(docs):          # sdist / Debian build dir ship without docs/
+        return
+    assert docgen.stale(docs) == [], "run: python3 -m openscore.docgen"
+    ref = docgen.command_reference()
+    assert "`--nuclei-rate` `N`" in ref and "`--authorization` `REF`" in ref
+    for key in ("ABUSEIPDB_KEY", "GREYNOISE_KEY", "HIBP_KEY"):   # env defaults never rendered
+        val = os.environ.get(key)
+        assert not val or val not in ref
+    cat = docgen.check_catalog()
+    assert all(f"`{cid}`" in cat for cid in kb.CHECKS)
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
