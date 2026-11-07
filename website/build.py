@@ -245,7 +245,17 @@ def build(out: str, base: str, sample: str | None = None) -> list[str]:
         shutil.copy(os.path.join(ROOT, "docs", "brand", src), os.path.join(out, "assets", dst))
     has_sample = bool(sample)
     if sample:
-        shutil.copy(sample, os.path.join(out, "sample-report.html"))
+        # Lab data must not show up in search results or AI answers as if it were real findings.
+        # robots.txt can't do this for a project site (crawlers only read it at the domain root),
+        # so the page itself carries noindex.
+        with open(sample, encoding="utf-8") as fh:
+            report = fh.read()
+        tag = '<meta name="robots" content="noindex, nofollow">'
+        report, n = re.subn(r"(<head[^>]*>)", lambda m: m.group(1) + tag, report, count=1, flags=re.I)
+        if not n:
+            report = tag + report
+        with open(os.path.join(out, "sample-report.html"), "w", encoding="utf-8", newline="") as fh:
+            fh.write(report)
 
     env = Environment(loader=FileSystemLoader(os.path.join(HERE, "templates")),
                       autoescape=select_autoescape(["html"]), trim_blocks=True, lstrip_blocks=True)
@@ -278,7 +288,8 @@ def build(out: str, base: str, sample: str | None = None) -> list[str]:
             fh.write(f"  <url><loc>{html.escape(u)}</loc><lastmod>{today}</lastmod></url>\n")
         fh.write("</urlset>\n")
     with open(os.path.join(out, "robots.txt"), "w", encoding="utf-8", newline="\n") as fh:
-        # The sample report is lab data; keep it out of search results and AI answers.
+        # Only read at a domain root (so not for a github.io project site); the sample report
+        # also carries a noindex tag for that reason.
         fh.write(f"User-agent: *\nAllow: /\nDisallow: {_path(base)}sample-report.html\n\n"
                  f"Sitemap: {base}sitemap.xml\n")
     # URL-style paths ("faq/index.html") on every OS

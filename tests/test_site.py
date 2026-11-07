@@ -36,7 +36,7 @@ def test_site_builds_and_faq_schema_matches_page():
     with tempfile.TemporaryDirectory() as d:
         sample = os.path.join(d, "report.html")
         with open(sample, "w", encoding="utf-8") as fh:
-            fh.write("<html>lab</html>")
+            fh.write("<!DOCTYPE html><html><head><title>lab</title></head><body>lab</body></html>")
         out = os.path.join(d, "site")
         files = b.build(out, BASE, sample)
         for f in ("index.html", "faq/index.html", "404.html", "sitemap.xml", "robots.txt",
@@ -46,6 +46,8 @@ def test_site_builds_and_faq_schema_matches_page():
             faq = fh.read()
         with open(os.path.join(out, "index.html"), encoding="utf-8") as fh:
             home = fh.read()
+        with open(os.path.join(out, "sample-report.html"), encoding="utf-8") as fh:
+            assert '<head><meta name="robots" content="noindex, nofollow">' in fh.read()
         with open(os.path.join(out, "robots.txt"), encoding="utf-8") as fh:
             robots = fh.read()
 
