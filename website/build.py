@@ -278,7 +278,9 @@ def build(out: str, base: str, sample: str | None = None) -> list[str]:
         # The sample report is lab data; keep it out of search results and AI answers.
         fh.write(f"User-agent: *\nAllow: /\nDisallow: {_path(base)}sample-report.html\n\n"
                  f"Sitemap: {base}sitemap.xml\n")
-    return sorted(os.path.relpath(os.path.join(d, f), out) for d, _, fs in os.walk(out) for f in fs)
+    # URL-style paths ("faq/index.html") on every OS
+    return sorted(os.path.relpath(os.path.join(d, f), out).replace(os.sep, "/")
+                  for d, _, fs in os.walk(out) for f in fs)
 
 
 def _path(base: str) -> str:
