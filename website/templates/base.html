@@ -7,6 +7,9 @@
 <meta name="description" content="{% block description %}{% endblock %}">
 {% block robots %}{% endblock %}
 <link rel="canonical" href="{{ page_url }}">
+{% for name, token in verification.items() %}
+<meta name="{{ name }}" content="{{ token }}">
+{% endfor %}
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F5F6F8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B0D12" media="(prefers-color-scheme: dark)">

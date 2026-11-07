@@ -31,6 +31,8 @@ from markupsafe import Markup  # noqa: E402
 from openscore import __version__, kb  # noqa: E402
 
 DEFAULT_BASE = "https://himynameislee.github.io/OpenScore/"
+# Search engine ownership tokens (public by design; shown in each page's <head>).
+SITE_VERIFICATION = {"google-site-verification": "1j-uvv6QlyyuMPMGqkwYwAepfxXPOac1PSR8gWwNZuE"}
 FAQ_MD = os.path.join(ROOT, "docs", "faq.md")
 
 
@@ -250,6 +252,7 @@ def build(out: str, base: str, sample: str | None = None) -> list[str]:
     sections = faq_sections()
     by_q = {i["q"]: i for s in sections for i in s["items"]}
     common = dict(base=base, repo=REPO, docs=DOCS, version=__version__, has_sample=has_sample,
+                  verification=SITE_VERIFICATION,
                   year=dt.date.today().year)
     pages = {
         "index.html": env.get_template("index.html").render(
