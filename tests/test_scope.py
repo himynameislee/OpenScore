@@ -441,7 +441,7 @@ def test_saas_ranges_announced_by_a_cdn_are_saas():
 
 def test_header_findings_belong_to_the_host_that_sent_them():
     """apex -> www (SaaS site builder) and dashboard -> www: the missing headers are www's, filed once,
-    and excluded from the score with it; the apex and dashboard get nothing."""
+    under www (scored, labeled with the vendor); the apex and dashboard get nothing."""
     from openscore.modules import web
     ctx = make_ctx(active=False)
     for h, cls in (("example.com", "owned"), ("www.example.com", "saas"), ("dashboard.example.com", "owned")):

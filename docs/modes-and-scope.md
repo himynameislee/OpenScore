@@ -49,7 +49,8 @@ shared with other customers:
 
 - **CDN** hosts (Cloudflare, Akamai, Azure Front Door…), unless you pass `--scan-cdn`.
 - **SaaS** hosts (Microsoft 365, Salesforce, Okta…). These are also skipped by exposure probes,
-  nuclei, testssl.sh and screenshots, and their findings don't count toward the score.
+  nuclei, testssl.sh and screenshots. What OpenScore does observe about them passively or as a normal
+  visitor still counts toward the score, labeled "hosted by <vendor>".
 
 See [Hosting classification](hosting-classification.md) for how hosts are classified.
 
