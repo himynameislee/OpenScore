@@ -34,7 +34,7 @@ identifies each finding.
 | `factor` | Which of the eight factors it scores under. |
 | `title`, `asset`, `hosts` | What was found, where, and (for findings on an IP) the sites on that IP. |
 | `description`, `remediation`, `verify` | Why it matters, how to fix it, and the command to confirm it by hand, with the host and URL filled in. |
-| `third_party` | On a SaaS-hosted name: reported, not scored; usually the vendor's to fix. |
+| `third_party`, `vendor` | The host is run by a SaaS or CDN provider (`vendor` names it). It counts toward the score; the fix is a vendor setting or a request to the vendor. |
 | `suppression` | Set when your suppressions file marks it as a false positive, accepted risk or compensating control. |
 
 ## Build the tracker

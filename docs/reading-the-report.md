@@ -27,9 +27,8 @@ The sections appear in this order.
 
 When there's an earlier scan of the same domain in the output folder (or you pass `--baseline`),
 this shows the previous date, score and grade, the change in points, and lists of **new** and
-**resolved** findings. A finding is matched across scans by its check, host and title. Suppressed,
-informational and third-party (SaaS) findings are left out of the comparison, since none of them
-affects the score. A line under the heading names the previous report file, when it ran, its mode
+**resolved** findings. A finding is matched across scans by its check, host and title. Suppressed
+and informational findings are left out of the comparison, since neither affects the score. A line under the heading names the previous report file, when it ran, its mode
 and how many assets it covered. If the mode differs or the asset count differs by more than a
 quarter, a note says the comparison isn't like-for-like.
 
@@ -96,11 +95,13 @@ only of in-scope pages.
 entry for that finding to your clipboard. See [Handling false positives](FALSE_POSITIVES.md) for the
 workflow.
 
-## Third-party hosted
+## Vendor-hosted findings
 
-Findings on hosts served by a SaaS provider: Microsoft 365 autodiscover, a marketing platform's
-landing pages, an identity provider's login page on your domain. The provider controls those
-settings, so these findings are listed for information and **excluded from the score**. See
+Findings on hosts a SaaS or CDN provider runs (Microsoft 365 autodiscover, a marketing platform's
+site, an identity provider's login page on your domain) appear with the rest, tagged
+**hosted by <vendor>**, and count toward the score. Each one adds a note on where the fix lives: a
+setting in the vendor's portal if it offers one, otherwise a request to the vendor. If it can't be
+changed, triage it as an accepted risk or compensating control. See
 [Hosting classification](hosting-classification.md).
 
 ## Suppressed findings

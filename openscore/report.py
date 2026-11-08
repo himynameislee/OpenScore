@@ -29,6 +29,22 @@ def _md(text: str) -> str:
     return "".join(out)
 
 
+def _vendor(ctx, asset: str) -> str:
+    """Who hosts the asset a finding is on, when it isn't the organization's own infrastructure:
+    the host's SaaS/CDN vendor, or for an IP the vendor of every host that resolves to it."""
+    from .modules.discovery import vendor_for
+    a = ctx.assets.get(asset)
+    if a is not None and not util.is_ip(asset):
+        return vendor_for(a)
+    users = [h for h in ctx.assets.values() if asset in h.ips and h.host != asset]
+    names = {vendor_for(h) for h in users}
+    if users and "" not in names:
+        return " / ".join(sorted(names))
+    if a is not None:                 # an IP the operator listed, or one with its own hosting record
+        return vendor_for(a)
+    return ""
+
+
 def build_result(ctx, assessed: set[str]) -> dict:
     ov = scoring.overall(ctx.findings, assessed)
     findings = [f.to_dict() for f in sorted(ctx.findings, key=lambda f: (SEV_RANK[f.severity], f.factor))]
@@ -42,6 +58,10 @@ def build_result(ctx, assessed: set[str]) -> dict:
                 d["hosts"] = ip_hosts[d["asset"]]
     # Fields for ticketing/trackers built from the JSON: a stable key, and the same why/verify/fix
     # text the HTML report shows (knowledge-base text only; evidence stays in "evidence"/"proof").
+    for d in findings:
+        v = _vendor(ctx, d["asset"])
+        if v:
+            d["vendor"] = v
     for d in findings:
         meta = kb.get(d["check_id"])
         d["key"] = finding_key(d)
@@ -70,10 +90,10 @@ def build_result(ctx, assessed: set[str]) -> dict:
 
 def diff(result: dict, baseline: dict, baseline_path: str = "") -> dict:
     def keys(r):
-        # Info, suppressed and third-party (SaaS) findings don't affect the score; leaving them out
-        # keeps "new/resolved" about things that moved the grade.
+        # Info and suppressed findings don't affect the score; leaving them out keeps "new/resolved"
+        # about things that moved the grade. Vendor-hosted findings count, so they're included.
         return {(f["check_id"], f["asset"], f["title"]): f for f in r["findings"]
-                if f["severity"] not in ("pass", "info") and not f.get("suppression") and not f.get("third_party")}
+                if f["severity"] not in ("pass", "info") and not f.get("suppression")}
 
     def ordered(fs):
         return sorted(fs, key=lambda f: (SEV_RANK.get(f["severity"], 9), f["title"], f["asset"]))
@@ -220,8 +240,7 @@ def coverage_warnings(result: dict) -> list[str]:
 
 
 def summary_sentence(result: dict) -> str:
-    sc = [f for f in result["findings"] if f["severity"] not in ("pass", "info") and not f["third_party"]
-          and not f.get("suppression")]
+    sc = [f for f in result["findings"] if f["severity"] not in ("pass", "info") and not f.get("suppression")]
     counts = defaultdict(int)
     for f in sc:
         counts[f["severity"]] += 1
@@ -274,8 +293,7 @@ def write_html(result: dict, path: str, delta: dict | None = None) -> None:
     env.filters["exhibit"] = lambda p, src="": Markup(proof.to_html(p, src))
     tmpl = env.from_string(TEMPLATE)
     open_ = [f for f in result["findings"] if f["severity"] != "pass" and not f.get("suppression")]
-    active = [f for f in open_ if not f["third_party"]]
-    third = [f for f in open_ if f["third_party"]]
+    active = open_
     suppressed = [f for f in result["findings"] if f.get("suppression")]
     passed = [f for f in result["findings"] if f["severity"] == "pass"]
     counts = defaultdict(int)
@@ -290,7 +308,7 @@ def write_html(result: dict, path: str, delta: dict | None = None) -> None:
         a["_shot"] = _data_uri(a.get("screenshot"), outdir)
     page = tmpl.render(
         r=result, factors=kb.FACTORS, groups=_group(active, result["domain"]),
-        third=_group(third, result["domain"]), passed=passed, suppressed=suppressed,
+        passed=passed, suppressed=suppressed,
         counts=counts, fcounts=fcounts, summary=summary_sentence(result), delta=delta,
         coverage=coverage_warnings(result),
         scoring_doc=scoring.__doc__, exhibit_css=Markup(proof.EXHIBIT_CSS),
@@ -363,6 +381,7 @@ details.f .body{padding:0 16px 14px}
 .why{margin-top:6px}
 .tag{font-size:11px;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--muted)}
 .tag.tent{border-color:var(--tent-line);color:var(--tent-ink);background:var(--tent-bg)}
+.tag.vendor{border-color:var(--logo-accent, #7C3AED);color:var(--logo-accent, #7C3AED)}
 .verify{background:var(--verify-bg);border:1px solid var(--verify-line);border-radius:6px;padding:10px 12px;margin-top:8px}
 .triage{margin-left:8px;white-space:nowrap}
 button.fp{font:inherit;font-size:11px;margin-left:6px;padding:1px 8px;border:1px solid var(--line);border-radius:4px;background:var(--btn-bg);color:var(--muted);cursor:pointer}
@@ -455,30 +474,21 @@ img.shot.thumb{max-width:150px;margin:0}
     {% for i in g.entries %}<div class="small" style="margin-top:8px"><code>{{ i.asset }}</code>{% if i.hosts %}
     <span class="muted">sites on this IP:</span> {% for h in i.hosts[:6] %}{% if h.url %}<a href="{{ h.url }}">{{ h.url }}</a>{% else %}<code>{{ h.host }}</code>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.hosts|length > 6 %} +{{ i.hosts|length - 6 }} more{% endif %}{% endif %}
     <span class="tag">{{ i.source }}</span>
+    {% if i.vendor %}<span class="tag vendor">hosted by {{ i.vendor }}</span>{% endif %}
     {% if i.confidence == "tentative" %}<span class="tag tent">needs verification</span>{% endif %}
     <span class="triage"><span class="muted small">Triage:</span>{% for st, label, toml in i.triage %}<button class="fp" data-toml="{{ toml }}" data-label="{{ label }}" title="Copy a suppressions-file entry ({{ label|lower }}) for this finding">{{ label }}</button>{% endfor %}</span></div>
     {% if i.proof %}{{ i.proof|exhibit(i.source) }}{% elif i.evidence %}<pre>{{ i.evidence }}</pre>{% endif %}
     {% if i._shot %}<div class="small muted" style="margin-top:6px">Page screenshot</div>
     <img class="shot" src="{{ i._shot }}" alt="Screenshot evidence for {{ i.asset }}" title="Click to enlarge">{% endif %}{% endfor %}
     {% if g.verify %}<div class="verify"><b>How to verify:</b> {{ g.verify|safe }}</div>{% endif %}
+    {% set vendors = g.entries|selectattr("vendor")|map(attribute="vendor")|unique|list %}
+    {% if vendors %}<div class="fix"><b>Vendor-hosted ({{ vendors|join(", ") }}):</b> the vendor runs this host, so the fix is a setting in the vendor's portal if it offers one, otherwise a request to the vendor. If it can't be changed, record that with <i>Accept risk</i> or <i>Compensating control</i> so it leaves the score with a review date.</div>{% endif %}
     {% if g.remediation %}<div class="fix"><b>How to fix:</b> {{ g.remediation|safe }}
     {% if g.refs %}<div class="small" style="margin-top:6px">{% for ref in g.refs %}<a href="{{ ref }}">{{ ref }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}</div>{% endif %}
   </div>
 </details>
 {% endfor %}{% endif %}{% endfor %}
 {% if not counts %}<p>No issues found.</p>{% endif %}
-
-{% set has_third = namespace(v=false) %}{% for k, gs in third.items() %}{% if gs %}{% set has_third.v = true %}{% endif %}{% endfor %}
-{% if has_third.v %}
-<h2>Third-party hosted (excluded from score)</h2>
-<div class="note">These hosts resolve to SaaS providers (e.g. Microsoft 365 autodiscover, a marketing platform). The provider controls these settings.
-If an external assessment counts them against you, <b>dispute them as third-party infrastructure</b>.</div>
-{% for key, gs in third.items() %}{% for g in gs %}
-<details class="f" data-s="{{ g.severity }}"><summary><span class="pill s-{{ g.severity }}">{{ g.severity }}</span><b>{{ g.title }}</b>
-<span class="muted small">{{ g.entries|map(attribute="asset")|unique|join(", ") }}</span></summary>
-<div class="body">{% for i in g.entries %}<pre>{{ i.asset }}: {{ i.evidence }}</pre>{% endfor %}</div></details>
-{% endfor %}{% endfor %}
-{% endif %}
 
 {% if suppressed or (r.suppressions and (r.suppressions.expired or r.suppressions.unused)) %}
 <h2>Suppressed findings ({{ suppressed|length }})</h2>

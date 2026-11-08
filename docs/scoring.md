@@ -39,9 +39,9 @@ Three rules adjust the deductions:
    something.
 2. **Tentative findings count half.** Findings marked *needs verification* (version-based CVE
    matches, ports seen only by Shodan, unknown DKIM selectors) deduct half their usual points.
-3. **Some findings don't count at all:** findings on third-party SaaS hosts (listed separately in
-   the report) and findings you've suppressed as a false positive, accepted risk or compensating
-   control.
+3. **Suppressed findings don't count:** findings you've triaged as a false positive, accepted risk
+   or compensating control. Findings on vendor-hosted hosts (SaaS, CDN) do count, labeled with the
+   vendor's name.
 
 A factor can't go below 0.
 

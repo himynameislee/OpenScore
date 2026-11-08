@@ -139,8 +139,8 @@ FAQ = [
     ("Does OpenScore give Microsoft 365 remediation steps?",
      "Yes. OpenScore's remediation includes Microsoft 365, Exchange Online and Entra ID specifics "
      "where they apply, such as enabling DKIM signing and SPF records for Microsoft 365.",
-     "Hostnames that point to SaaS services such as Microsoft 365 are recognized and kept out of "
-     "the score, because the provider controls those settings."),
+     "Hostnames that point to vendor services such as Microsoft 365 are recognized and labeled with "
+     "the vendor's name; their findings count, with a note on whether the fix is a vendor setting."),
     ("Can I track OpenScore findings over time?",
      "Yes. Each OpenScore scan is compared with the previous one, listing new and resolved findings "
      "and the score change.",

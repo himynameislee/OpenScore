@@ -71,7 +71,7 @@ credential guessing or payload injection, and nuclei runs with safe templates on
 - **Triage workflow:** one-click **False positive**, **Accept risk** and **Compensating control** buttons on every finding, feeding a suppressions file with reason, approver and review date ([docs](docs/FALSE_POSITIVES.md)).
 - **Evidence exhibits for every finding:** the raw response, DNS answer or certificate with the offending line highlighted, exported as PNGs for tickets, plus page screenshots of portals and panels.
 - **Confidence levels:** version-based and stale-data findings are flagged *needs verification* and count half.
-- **Third-party detection:** findings on SaaS-hosted hosts (M365, HubSpot, Shopify…) are excluded from the score and listed separately, because the provider controls those settings.
+- **Vendor-hosted hosts:** sites and services run by a SaaS or CDN provider (Microsoft 365, HubSpot, Okta, Cloudflare…) are recognized and labeled with the vendor's name. Their findings count like any other, since the organization chose the vendor, and the report says whether the fix is a vendor setting or a request to the vendor. Active checks never touch vendor infrastructure.
 - **Asset inventory with ASN/hosting**, so you can see exactly which hosts and IPs were assessed and catch any that aren't yours.
 - **Trend tracking:** each scan is compared with the previous one, showing new issues, resolved issues and the score change.
 - **Runs on Linux and Windows**, with standalone binaries for both.
