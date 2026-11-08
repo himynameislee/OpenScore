@@ -505,7 +505,7 @@ Check this list and flag anything that isn't yours.</div>
 {% for a in r.assets %}<tr>
 <td><code>{{ a.host }}</code>{% if a.cnames %}<div class="muted small">→ {{ a.cnames|join(" → ") }}</div>{% endif %}</td>
 <td class="small">{{ a.ips[:4]|join(", ") }}{% if a.ips|length>4 %} +{{ a.ips|length-4 }}{% endif %}</td>
-<td class="small">{% for ip, h in a.hosting.items() %}{% if h.org %}{{ h.org }} (AS{{ h.asn }}){% if not loop.last %}<br>{% endif %}{% endif %}{% endfor %}</td>
+<td class="small">{% for ip, h in a.hosting.items() %}{% if h.org or h.provider %}{% if h.provider %}{{ h.provider }}{% if h.org %} via {% endif %}{% endif %}{% if h.org %}{{ h.org }} (AS{{ h.asn }}){% endif %}{% if not loop.last %}<br>{% endif %}{% endif %}{% endfor %}</td>
 <td><span class="tag">{{ a.hosting_class }}</span></td>
 <td class="small">{% for u, w in a.web.items() %}{% if w.status %}{{ w.status }} {{ w.title[:50] }}{% if w.note %} <span class="muted">({{ w.note }})</span>{% endif %}<br>{% endif %}{% endfor %}</td>
 <td>{% if a._shot %}<img class="shot thumb" src="{{ a._shot }}" alt="{{ a.host }} homepage" title="Click to enlarge">{% endif %}</td>
@@ -517,7 +517,7 @@ Check this list and flag anything that isn't yours.</div>
 <p><b>Mode:</b> {{ r.mode }}. Passive checks query public DNS, certificate transparency and threat-intel APIs without touching the target.
 Light checks behave like a normal browser visit (TLS handshake, homepage, security.txt).
 {% if r.mode == "active" %}Active checks (port scan, well-known-path probes, CORS probe, and nuclei safe-tag templates / testssl.sh when installed) ran under the authorization noted above; every action is listed in the audit log.{% else %}Active checks were not run.{% endif %}</p>
-<p><b>Assessed factors:</b> {{ r.assessed_factors|map("title")|join(", ") }}</p>
+<p><b>Assessed factors:</b> {% for f in r.assessed_factors %}{{ factors[f].name if f in factors else f }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
 <pre>{{ scoring_doc.strip() }}</pre>
 {% if r.module_status %}<p><b>Module notes:</b></p><pre>{% for m, st in r.module_status.items() %}{{ m }}: {{ st }}
 {% endfor %}</pre>{% endif %}

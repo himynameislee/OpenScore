@@ -126,8 +126,9 @@ CHECKS: dict[str, dict] = {
                     "preventing downgrade/man-in-the-middle on inbound mail.",
         remediation="Publish TXT `_mta-sts.<domain>` = `v=STSv1; id=20260101` and host "
                     "https://mta-sts.<domain>/.well-known/mta-sts.txt with `version: STSv1`, "
-                    "`mode: enforce`, `mx: *.mail.protection.outlook.com`, `max_age: 604800`. "
-                    "Exchange Online supports inbound MTA-STS.",
+                    "`mode: enforce`, one `mx:` line per MX host (wildcards allowed), `max_age: 604800`. "
+                    "Use the MX hosts listed in the evidence; for Exchange Online that's "
+                    "`mx: *.mail.protection.outlook.com`. Start with `mode: testing` to confirm nothing breaks.",
         refs=["https://learn.microsoft.com/purview/enhancing-mail-flow-with-mta-sts"]),
     "email_mtasts_testing": dict(
         factor="email", severity="info", title="MTA-STS in testing mode",

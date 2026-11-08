@@ -364,6 +364,14 @@ def http_check(ctx, asset_name: str, https_url: str, http_url: str, tls_ok: bool
         if resp is not None and not own:
             a.web[target.url]["note"] = f"redirects off-site to {final_host}"
         return
+    # Headers and cookies belong to the server that sent them. When the homepage redirects to another
+    # of the organization's hosts (apex -> www, dashboard -> www), file the findings under that host,
+    # so its hosting class (e.g. a SaaS site builder) decides scoring, and check each origin once.
+    final = urlparse(resp.url)
+    if final_host != asset_name and final_host in ctx.assets:
+        asset_name = final_host
+    if not _first_header_check(ctx, f"{final.scheme}://{final.netloc}"):
+        return
     h = {k.lower(): v for k, v in resp.headers.items()}
     issues = False
     hsts = h.get("strict-transport-security")
@@ -429,7 +437,6 @@ def http_check(ctx, asset_name: str, https_url: str, http_url: str, tls_ok: bool
 
     # The probe goes to the URL the homepage ended on, so both the asset and that final host must
     # be fair game: in scope and not a third-party SaaS host (e.g. a sign-in redirect to the IdP).
-    final = urlparse(resp.url)
     if ctx.cfg.active and ctx.active_ok(asset_name) and ctx.active_ok(final.hostname or "") \
             and _first_cors_probe(ctx, f"{final.scheme}://{final.netloc}"):
         probe = "https://openscore-cors-probe.example"
@@ -459,6 +466,17 @@ def http_check(ctx, asset_name: str, https_url: str, http_url: str, tls_ok: bool
 
 
 _cors_lock = threading.Lock()
+
+
+def _first_header_check(ctx, origin: str) -> bool:
+    """Response headers, cookies and mixed content are judged once per origin, however many of the
+    organization's hosts redirect there."""
+    with _cors_lock:
+        done = ctx.__dict__.setdefault("_headers_checked", set())
+        if origin in done:
+            return False
+        done.add(origin)
+        return True
 
 
 def _first_cors_probe(ctx, origin: str) -> bool:
