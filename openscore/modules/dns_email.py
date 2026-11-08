@@ -239,13 +239,14 @@ def check_dkim(ctx, has_mx: bool) -> None:
 
 
 # -------------------------------------------------------------- MTA-STS / TLS-RPT
-def check_mtasts(ctx, has_mx: bool) -> None:
+def check_mtasts(ctx, has_mx: bool, mx_hosts: list[str] | None = None) -> None:
     if not has_mx:
         return
     d = ctx.domain
+    mx_note = ("MX hosts to list in the policy (mx: lines): " + ", ".join(mx_hosts)) if mx_hosts else ""
     r = ctx.dns.txt(f"_mta-sts.{d}")
     if r.definitive_absent or (r.ok and not any(x.lower().startswith("v=stsv1") for x in r.records)):
-        ctx.add("email_mtasts_missing", d, source="dns",
+        ctx.add("email_mtasts_missing", d, mx_note, source="dns",
                 proof=proof.dns(f"_mta-sts.{d}", "TXT", r, verdict="No MTA-STS policy published"))
     elif r.ok:
         try:
@@ -345,7 +346,9 @@ def run(ctx) -> None:
     check_spf(ctx, has_mx)
     check_dmarc(ctx)
     check_dkim(ctx, has_mx)
-    check_mtasts(ctx, has_mx)
+    mx_hosts = sorted({r.split()[-1].rstrip(".").lower() for r in mx.records
+                       if r.split() and r.split()[-1] not in (".", "")}) if mx.ok else []
+    check_mtasts(ctx, has_mx, mx_hosts)
     nameservers = check_dns_health(ctx)
     if ctx.cfg.active and nameservers:
         check_axfr(ctx, nameservers)

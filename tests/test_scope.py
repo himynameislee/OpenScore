@@ -413,6 +413,73 @@ def test_certificate_expiry_severity_and_priority_fixes_split_by_title():
     assert all(len(w["assets"]) == 2 for w in wins), wins
 
 
+
+def test_saas_ranges_announced_by_a_cdn_are_saas():
+    """A SaaS-hosted root domain has no CNAME, only A/AAAA records into the provider's range, which
+    another network may announce (HubSpot's 199.60.103.0/24 via a Cloudflare ASN)."""
+    from openscore.modules import discovery
+    from openscore.util import DNSResult
+    assert discovery.saas_provider_for_ip("199.60.103.28") == "HubSpot"
+    assert discovery.saas_provider_for_ip("2606:2c40::c73c:671c") == "HubSpot"
+    assert discovery.saas_provider_for_ip("199.60.104.28") == ""
+    assert discovery.saas_provider_for_ip("not-an-ip") == ""
+
+    answers = {"28.103.60.199.origin.asn.cymru.com": ["209242 | 199.60.103.0/24 | US | arin | 2015-01-01"],
+               "AS209242.asn.cymru.com": ["209242 | US | ripencc | 2015-01-01 | CLOUDFLARESPECTRUM - Cloudflare London, LLC, US"],
+               "1.1.0.192.origin.asn.cymru.com": ["13335 | 192.0.1.0/24 | US | arin | 2010-01-01"],
+               "AS13335.asn.cymru.com": ["13335 | US | arin | 2010-01-01 | CLOUDFLARENET - Cloudflare, Inc., US"]}
+    ctx = make_ctx(active=False)
+    ctx.dns = types.SimpleNamespace(txt=lambda q: DNSResult("ok", answers[q]) if q in answers
+                                    else DNSResult("nxdomain"))
+    hub = discovery._asn(ctx, "199.60.103.28")
+    assert hub["class"] == "saas" and hub["provider"] == "HubSpot" and "Cloudflare" in hub["org"], hub
+    assert discovery._asn(ctx, "192.0.1.1")["class"] == "cdn"                 # a real CDN customer stays cdn
+    assert discovery._asn(ctx, "199.60.103.128") == {"class": "saas", "provider": "HubSpot"}   # no ASN answer
+    assert discovery.classify([], {"saas"}) == "saas"
+
+
+def test_header_findings_belong_to_the_host_that_sent_them():
+    """apex -> www (SaaS site builder) and dashboard -> www: the missing headers are www's, filed once,
+    and excluded from the score with it; the apex and dashboard get nothing."""
+    from openscore.modules import web
+    ctx = make_ctx(active=False)
+    for h, cls in (("example.com", "owned"), ("www.example.com", "saas"), ("dashboard.example.com", "owned")):
+        ctx.asset(h).hosting_class = cls
+    bare = {"Content-Type": "text/html", "Set-Cookie": "sid=1; Path=/"}
+
+    def fake_get(session, url, **kw):
+        return resp("https://www.example.com/", "<html><title>x</title></html>", headers=bare)
+    with patched(util, get_tolerant=fake_get):
+        for start in ("example.com", "dashboard.example.com", "www.example.com"):
+            web.http_check(ctx, start, f"https://{start}/", None, True)
+    hdr = [f for f in ctx.findings if f.check_id.startswith("http_") and f.check_id != "http_no_redirect"]
+    assert hdr and {f.asset for f in hdr} == {"www.example.com"}, [(f.check_id, f.asset) for f in hdr]
+    assert all(f.third_party for f in hdr)
+    assert len(hdr) == len({f.check_id for f in hdr}), "each header issue reported once"
+    # a host that serves its own page still gets its own findings
+    ctx2 = make_ctx(active=False)
+    ctx2.asset("app.example.com").hosting_class = "owned"
+    with patched(util, get_tolerant=lambda s, url, **kw: resp("https://app.example.com/login", "<html></html>",
+                                                              headers=bare)):
+        web.http_check(ctx2, "app.example.com", "https://app.example.com/", None, True)
+    assert {f.asset for f in ctx2.findings if f.check_id == "http_xfo_missing"} == {"app.example.com"}
+
+
+def test_mta_sts_finding_names_the_domains_own_mx_hosts():
+    from openscore import kb
+    from openscore.modules import dns_email
+    from openscore.util import DNSResult
+    ctx = make_ctx(active=False)
+    recs = {("example.com", "MX"): ["10 mxa-001.gslb.pphosted.example.", "10 mxb-001.gslb.pphosted.example."]}
+    ctx.dns = types.SimpleNamespace(
+        dead=False, query=lambda n, t: DNSResult("ok", recs[(n, t)]) if (n, t) in recs else DNSResult("nxdomain"),
+        txt=lambda n: DNSResult("nxdomain"))
+    ctx.session = types.SimpleNamespace(headers={}, get=lambda *a, **k: (_ for _ in ()).throw(OSError("offline")))
+    dns_email.run(ctx)
+    f = next(f for f in ctx.findings if f.check_id == "email_mtasts_missing")
+    assert "mxa-001.gslb.pphosted.example, mxb-001.gslb.pphosted.example" in f.evidence, f.evidence
+    assert "mx: *.mail.protection.outlook.com`, `max_age" not in kb.CHECKS["email_mtasts_missing"]["remediation"]
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

@@ -115,6 +115,29 @@ SAAS_CNAMES = ["outlook.com", "office.com", "office365.com", "lync.com", "micros
                "okta.com", "oktapreview.com", "okta-emea.com", "okta-dnssec.com", "auth0.com",
                "safebase.io", "statuspage.io", "freshdesk.com", "helpscoutdocs.com", "okt.to",
                "github.io", "netlify.app", "vercel-dns.com", "pphosted.com", "mimecast.com"]
+# Address ranges that belong to a SaaS provider even though another network announces them (so the
+# ASN org names the CDN, not the provider). Root domains can't use a CNAME, so a provider-hosted apex
+# is only recognizable by its A/AAAA records. Only ranges the provider documents or that are
+# provably theirs; first match wins.
+SAAS_IP_RANGES = [
+    ("199.60.103.0/24", "HubSpot"),                 # root-domain A records; announced via Cloudflare AS209242
+    ("2606:2c40::c73c:6700/120", "HubSpot"),        # IPv6 twins of 199.60.103.x
+    ("23.227.38.0/24", "Shopify"),                  # Shopify's documented apex A record (23.227.38.65)
+    ("75.2.60.5/32", "Netlify"),                    # Netlify's documented apex load balancer
+    ("76.76.21.21/32", "Vercel"),                   # Vercel's documented apex A record
+]
+_SAAS_NETS = [(ipaddress.ip_network(n), p) for n, p in SAAS_IP_RANGES]
+
+
+def saas_provider_for_ip(ip: str) -> str:
+    """Provider name if the address is in a known SaaS range, else ""."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ""
+    return next((p for net, p in _SAAS_NETS if addr.version == net.version and addr in net), "")
+
+
 # CNAME target suffixes for edge/CDN services (no port scans; headers still assessed).
 CDN_CNAMES = ["azurefd.net", "azureedge.net", "afd.azureedge.net", "cloudfront.net", "akamaiedge.net",
               "edgekey.net", "edgesuite.net", "fastly.net", "cdn.cloudflare.net", "impervadns.net"]
@@ -230,7 +253,8 @@ def _asn(ctx, ip: str) -> dict:
         q = ".".join(reversed(nib)) + ".origin6.asn.cymru.com"
     r = ctx.dns.txt(q)
     if not r.ok or not r.records:
-        return {}
+        provider = saas_provider_for_ip(ip)
+        return {"class": "saas", "provider": provider} if provider else {}
     parts = [p.strip() for p in r.records[0].split("|")]
     asn = parts[0].split()[0] if parts and parts[0] else ""
     info = {"asn": asn, "prefix": parts[1] if len(parts) > 1 else "", "cc": parts[2] if len(parts) > 2 else ""}
@@ -240,6 +264,9 @@ def _asn(ctx, ip: str) -> dict:
             info["org"] = n.records[0].split("|")[-1].strip()
     org = info.get("org", "").lower()
     info["class"] = class_for_org(org)
+    provider = saas_provider_for_ip(ip)
+    if provider:
+        info["class"], info["provider"] = "saas", provider
     return info
 
 
