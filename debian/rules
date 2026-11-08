@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+include /usr/share/dpkg/pkg-info.mk
+
 export PYBUILD_NAME=openscore
 # Run the test suite against the built package (tests are copied in, then removed again so they're
 # never installed). Screenshot tests need a browser, which buildds don't have.
@@ -16,7 +18,7 @@ execute_after_dh_auto_install:
 	# man page from -h, generated from the installed entry point so NAME reads "openscore"
 	PYTHONPATH=$(CURDIR) help2man --no-info --no-discard-stderr \
 	    --name="external security rating with evidence and remediation steps" \
-	    --version-string="$$(dpkg-parsechangelog -S Version | sed 's/-[^-]*$$//')" \
+	    --version-string="$(DEB_VERSION_UPSTREAM)" \
 	    --output=debian/openscore.1 debian/openscore/usr/bin/openscore
 
 execute_after_dh_clean:
