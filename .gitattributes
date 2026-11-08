@@ -4,3 +4,7 @@
 *.bat text eol=crlf
 *.ps1 text eol=crlf
 *.png binary
+
+# Release tarballs (GitHub source archives, Debian/Kali orig.tar.gz) ship only what the tool
+# needs. The website is built and deployed from the repo by .github/workflows/pages.yml.
+website/ export-ignore
