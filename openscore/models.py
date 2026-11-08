@@ -26,7 +26,7 @@ class Finding:
     evidence: str = ""
     source: str = ""
     confidence: str = "firm"          # firm | tentative
-    third_party: bool = False          # asset hosted by a SaaS provider -> excluded from score
+    third_party: bool = False          # asset hosted by a SaaS provider (scored; labeled with the vendor)
     suppression: Optional[dict] = None # set when matched by a suppressions file entry
     screenshot: Optional[str] = None   # path (relative to output dir) of evidence image
     proof: Optional[dict] = None       # raw evidence exhibit (see proof.py)
@@ -138,7 +138,7 @@ class ScanContext:
         from urllib.parse import urlparse
         out = []
         for a in sorted(self.assets.values(), key=lambda a: a.host):
-            if ip not in a.ips or a.host == ip or self._is_third_party(a.host):
+            if ip not in a.ips or a.host == ip:
                 continue
             own = [urlparse(u) for u in a.web if (urlparse(u).hostname or "") == a.host]
             p = next((p for p in own if p.scheme == "https"), None) or (own[0] if own else None)

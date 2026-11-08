@@ -8,7 +8,9 @@ Every point is explainable:
   as much as the previous one), so one misconfiguration copied across 40 subdomains doesn't
   zero a factor — but breadth still matters.
 * Tentative findings (version-based CVE matches, DKIM-not-found) count half.
-* Findings on third-party SaaS-hosted assets are excluded (shown separately for dispute).
+* Findings on vendor-hosted assets (site builders, identity providers, email gateways, CDNs) count like
+  any other: the organization chose the vendor and owns the exposure. The report names the vendor, so
+  you know whether the fix is a setting in the vendor's portal or a request to the vendor.
 * Suppressed findings (triaged false positives, accepted risks and compensating controls, the last two with an expiry) are excluded.
 * Overall = weighted average of assessed factors; any open, confirmed critical caps the overall at 79 (C).
   A critical that still needs verification (version-based match) doesn't cap the grade; the report
@@ -30,7 +32,7 @@ def grade(score: float) -> str:
 
 
 def _scored(findings):
-    return [f for f in findings if f.severity != "pass" and not f.third_party and not f.suppression]
+    return [f for f in findings if f.severity != "pass" and not f.suppression]
 
 
 def factor_scores(findings, assessed: set[str]) -> dict:
@@ -39,7 +41,7 @@ def factor_scores(findings, assessed: set[str]) -> dict:
         by_factor[f.factor].append(f)
     out = {}
     for fac in FACTORS:
-        if fac not in assessed and not by_factor.get(fac):
+        if fac not in assessed and not any(f.severity != "info" for f in by_factor.get(fac, [])):
             out[fac] = None
             continue
         per_check = defaultdict(list)

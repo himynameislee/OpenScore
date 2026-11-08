@@ -82,8 +82,8 @@ def claimable(target: str, suffix: str) -> bool | None:
     labels = target.rstrip(".").lower()[: -len(suffix)].rstrip(".").split(".")
     return want > 0 and len(labels) == want and all(labels)
 
-# ASN org substrings -> hosting class. "saas" = third-party service you can't fix yourself
-# (findings excluded from score, no active checks); "cdn" = proxy in front of your origin (no port
+# ASN org substrings -> hosting class. "saas" = third-party service the organization uses but
+# doesn't run (scored and labeled with the vendor; no active checks); "cdn" = proxy in front of your origin (no port
 # scans); "cloud" = IaaS/PaaS you run and configure yourself (fully assessed).
 # Microsoft's ASN carries both Microsoft 365 and customers' own Azure VMs, gateways and apps. Azure is
 # the customer's to fix, so the ASN means "cloud"; Microsoft 365 is recognized by CNAME (SAAS_CNAMES).
@@ -136,6 +136,55 @@ def saas_provider_for_ip(ip: str) -> str:
     except ValueError:
         return ""
     return next((p for net, p in _SAAS_NETS if addr.version == net.version and addr in net), "")
+
+
+# Friendly vendor names for SAAS_CNAMES / CDN_CNAMES suffixes (report labels "hosted by ...").
+VENDOR_BY_SUFFIX = {
+    "outlook.com": "Microsoft 365", "office.com": "Microsoft 365", "office365.com": "Microsoft 365",
+    "lync.com": "Microsoft 365", "microsoftonline.com": "Microsoft 365", "protection.outlook.com": "Microsoft 365",
+    "sharepoint.com": "Microsoft 365", "manage.microsoft.com": "Microsoft Intune", "msappproxy.net": "Microsoft Entra",
+    "zendesk.com": "Zendesk", "hubspot.net": "HubSpot", "salesforce.com": "Salesforce", "force.com": "Salesforce",
+    "pardot.com": "Salesforce Pardot", "shopify.com": "Shopify", "squarespace.com": "Squarespace", "wixdns.net": "Wix",
+    "googlehosted.com": "Google", "ghs.google.com": "Google", "mailgun.org": "Mailgun", "sendgrid.net": "SendGrid",
+    "mandrillapp.com": "Mailchimp", "sparkpostmail.com": "SparkPost", "mktoweb.com": "Marketo",
+    "okta.com": "Okta", "oktapreview.com": "Okta", "okta-emea.com": "Okta", "okta-dnssec.com": "Okta", "okt.to": "Okta",
+    "auth0.com": "Auth0", "safebase.io": "SafeBase", "statuspage.io": "Atlassian Statuspage",
+    "freshdesk.com": "Freshdesk", "helpscoutdocs.com": "Help Scout", "github.io": "GitHub Pages",
+    "netlify.app": "Netlify", "vercel-dns.com": "Vercel", "pphosted.com": "Proofpoint", "mimecast.com": "Mimecast",
+    "azurefd.net": "Azure Front Door", "azureedge.net": "Azure CDN", "cloudfront.net": "Amazon CloudFront",
+    "akamaiedge.net": "Akamai", "edgekey.net": "Akamai", "edgesuite.net": "Akamai", "fastly.net": "Fastly",
+    "cdn.cloudflare.net": "Cloudflare", "impervadns.net": "Imperva",
+}
+
+
+def _org_name(org: str) -> str:
+    """'PROOFPOINT-ASN-US-WEST - Proofpoint, Inc., US' -> 'Proofpoint, Inc.'"""
+    org = (org or "").strip()
+    if " - " in org:
+        org = org.split(" - ", 1)[1]
+    parts = [p.strip() for p in org.split(",")]
+    if len(parts) > 1 and len(parts[-1]) == 2:      # trailing country code
+        parts = parts[:-1]
+    return ", ".join(parts)
+
+
+def vendor_for(asset) -> str:
+    """Who runs a SaaS- or CDN-hosted asset, for the report ("hosted by HubSpot"). "" for the
+    organization's own hosts (owned/cloud)."""
+    if asset is None or asset.hosting_class not in ("saas", "cdn"):
+        return ""
+    for h in (asset.hosting or {}).values():
+        if h.get("provider"):
+            return h["provider"]
+    for c in reversed(asset.cnames or []):
+        c = c.lower().rstrip(".")
+        for suffix, name in VENDOR_BY_SUFFIX.items():
+            if c == suffix or c.endswith("." + suffix):
+                return name
+    for h in (asset.hosting or {}).values():
+        if h.get("class") == asset.hosting_class and h.get("org"):
+            return _org_name(h["org"])
+    return "a SaaS provider" if asset.hosting_class == "saas" else "a CDN"
 
 
 # CNAME target suffixes for edge/CDN services (no port scans; headers still assessed).

@@ -13,8 +13,8 @@ record.
 | Stale internet-scan data (Shodan) | Ports seen only by Shodan are **tentative**. In active mode each one is re-tested live: confirmed → firm, unreachable → kept tentative with a "likely stale" note. |
 | Distro backports (Ubuntu/RHEL patch old version numbers) | Banners with a distro marker (`(Ubuntu)`, `el8`, `+deb11u3`…) mark EOL/outdated findings **tentative** with a backport warning. |
 | Version-based CVE matching | Always **tentative**, counted at half weight; KEV/EPSS used to prioritize. |
-| Third-party SaaS (M365 autodiscover, HubSpot, Shopify…) | Detected by CNAME/ASN, excluded from score, listed separately for dispute. |
-| CDN/shared IPs (Cloudflare, Akamai) | Never port-scanned or reputation-scored as the client's own. |
+| Vendor-hosted hosts (M365 autodiscover, HubSpot, Okta, Shopify…) | Detected by CNAME, documented IP ranges or ASN and labeled "hosted by <vendor>". They're scored like any other host; if the vendor can't change a setting, triage it as an accepted risk or compensating control. |
+| CDN/shared IPs (Cloudflare, Akamai) | Never port-scanned and never checked against IP blocklists (shared IPs are listed for other tenants). Ports Shodan saw on them are reported as tentative; CDN edges answer on extra ports for every customer, so triage those as false positives where that's the case. |
 | Unknown DKIM selectors | DKIM-not-found is **tentative** and low severity; add `--dkim-selectors`. |
 
 Tentative findings show a **needs verification** badge in the report and count half towards the score.

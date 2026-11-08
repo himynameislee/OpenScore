@@ -272,7 +272,7 @@ def test_baseline_diff_ignores_info_findings():
     assert d["new"] == [] and d["resolved"] == [], d
 
 
-def test_baseline_diff_skips_third_party_and_flags_unlike_scans():
+def test_baseline_diff_includes_vendor_hosted_and_flags_unlike_scans():
     base = {"started": "2026-11-07T15:20:00+00:00", "mode": "passive+light", "overall": {"score": 96, "grade": "A"},
             "assets": [{"host": "example.com"}],
             "findings": [{"check_id": "a", "asset": "example.com", "title": "A", "severity": "low"}]}
@@ -283,7 +283,7 @@ def test_baseline_diff_skips_third_party_and_flags_unlike_scans():
                         {"check_id": "w", "asset": "login.example.com", "title": "W", "severity": "medium",
                          "third_party": True}]}
     d = report.diff(now, base, "/tmp/reports/example.com-20261107-1520.json")
-    assert [f["check_id"] for f in d["new"]] == ["c", "b"], d["new"]          # no SaaS finding; high first
+    assert [f["check_id"] for f in d["new"]] == ["c", "w", "b"], d["new"]     # vendor-hosted counts; by severity
     assert [f["check_id"] for f in d["resolved"]] == ["a"]
     assert d["baseline_file"] == "example.com-20261107-1520.json"
     assert any("passive+light mode" in c for c in d["caveats"]) and any("1 asset(s)" in c for c in d["caveats"])
@@ -373,9 +373,10 @@ def test_ip_findings_show_the_sites_on_that_ip():
     b = ctx.asset("mail.example.com")
     b.ips, b.hosting_class = ["203.0.113.5"], "owned"            # no website
     s = ctx.asset("crm.example.com")
-    s.ips, s.hosting_class = ["203.0.113.5"], "saas"             # third party: not listed
+    s.ips, s.hosting_class = ["203.0.113.5"], "saas"             # vendor-hosted: listed too
     ctx.asset("203.0.113.5").hosting_class = "owned"
     assert ctx.hosts_on_ip("203.0.113.5") == [{"host": "app.example.com", "url": "https://app.example.com/"},
+                                              {"host": "crm.example.com", "url": None},
                                               {"host": "mail.example.com", "url": None}]
     ctx.add("vuln_high_epss", "203.0.113.5", "CVE-2021-44790", title="1 CVE(s) with high exploit probability",
             confidence="tentative")
@@ -383,7 +384,7 @@ def test_ip_findings_show_the_sites_on_that_ip():
     ctx.add("tls_testssl", "app.example.com", "x", severity="high", title="TLS: ROBOT")
     r = report.build_result(ctx, {"patching", "tls"})
     f = next(x for x in r["findings"] if x["asset"] == "203.0.113.5")
-    assert [h["host"] for h in f["hosts"]] == ["app.example.com", "mail.example.com"], f
+    assert [h["host"] for h in f["hosts"]] == ["app.example.com", "crm.example.com", "mail.example.com"], f
     assert "hosts" not in next(x for x in r["findings"] if x["asset"] == "app.example.com")
     assert "next=x" not in str(r["ip_hosts"])
     with tempfile.TemporaryDirectory() as td:
@@ -391,7 +392,7 @@ def test_ip_findings_show_the_sites_on_that_ip():
         report.write_html(r, p)
         page = open(p, encoding="utf-8").read()
     assert 'sites on this IP:</span> <a href="https://app.example.com/">' in page, page[:200]
-    assert "203.0.113.5 (app.example.com +1)" in page
+    assert "203.0.113.5 (app.example.com +2)" in page
     # "fixing the top items" removes exactly the listed issues (check + title), not every testssl row
     only_robot = dict(r, quick_wins=[w for w in r["quick_wins"] if w["title"] == "TLS: ROBOT"])
     both = dict(r, quick_wins=[w for w in r["quick_wins"] if w["check_id"] == "tls_testssl"])
@@ -479,6 +480,87 @@ def test_mta_sts_finding_names_the_domains_own_mx_hosts():
     f = next(f for f in ctx.findings if f.check_id == "email_mtasts_missing")
     assert "mxa-001.gslb.pphosted.example, mxb-001.gslb.pphosted.example" in f.evidence, f.evidence
     assert "mx: *.mail.protection.outlook.com`, `max_age" not in kb.CHECKS["email_mtasts_missing"]["remediation"]
+
+
+def test_vendor_hosted_findings_are_scored_and_labeled():
+    """Findings on SaaS/CDN-hosted hosts count like any other; the report names the vendor and says
+    where the fix lives. No separate 'excluded' section."""
+    from openscore import scoring
+    from openscore.modules import discovery
+    ctx = make_ctx(active=False)
+    ctx.cfg.client, ctx.cfg.authorization = "Example", ""
+    www = ctx.asset("www.example.com")
+    www.hosting_class, www.cnames = "saas", ["1234.group27.sites.hubspot.net."]
+    own = ctx.asset("app.example.com")
+    own.hosting_class = "owned"
+    ctx.add("http_xfo_missing", "www.example.com", "https://www.example.com/")
+    assert ctx.findings[0].third_party                                # still flagged as vendor-hosted
+    assert scoring.factor_scores(ctx.findings, {"appsec"})["appsec"] < 100   # ...and scored
+    r = report.build_result(ctx, {"appsec"})
+    f = next(x for x in r["findings"] if x["check_id"] == "http_xfo_missing")
+    assert f["vendor"] == "HubSpot" and r["overall"]["score"] < 100
+    assert "1 low" in report.summary_sentence(r)
+    assert r["quick_wins"] and r["quick_wins"][0]["assets"] == ["www.example.com"]
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "r.html")
+        report.write_html(r, p)
+        page = open(p, encoding="utf-8").read()
+    assert "hosted by HubSpot" in page and "Vendor-hosted (HubSpot)" in page
+    assert "excluded from score" not in page
+    # vendor names: CNAME suffix, documented IP range, ASN org; own hosts get none
+    okta = ctx.asset("login.example.com")
+    okta.hosting_class, okta.cnames = "saas", ["tenant.customdomains.okta-dnssec.com"]
+    edge = ctx.asset("cdn.example.com")
+    edge.hosting_class, edge.hosting = "cdn", {"192.0.2.1": {"class": "cdn",
+                                                             "org": "CLOUDFLARENET - Cloudflare, Inc., US"}}
+    apex = ctx.asset("example.com")
+    apex.hosting_class, apex.hosting = "saas", {"199.60.103.28": {"class": "saas", "provider": "HubSpot"}}
+    assert [discovery.vendor_for(x) for x in (okta, edge, apex, own)] == ["Okta", "Cloudflare, Inc.", "HubSpot", ""]
+
+
+def test_info_only_factor_stays_not_assessed():
+    from openscore import scoring
+    ctx = make_ctx(active=False)
+    ctx.add("rep_shodan_tag", "192.0.2.9", "x", severity="info")     # an info finding under reputation
+    assert scoring.factor_scores(ctx.findings, set())["reputation"] is None
+    ctx.add("rep_shodan_tag", "192.0.2.10", "x", severity="low")
+    assert scoring.factor_scores(ctx.findings, set())["reputation"] is not None
+
+
+def test_vendor_ips_get_shodan_ports_but_no_blocklists_or_live_checks():
+    """Risky ports Shodan saw on a vendor's IP are scored (tentative, passive only); blocklist and
+    abuse lookups stay on the organization's own IPs, and nothing contacts the vendor IP."""
+    from openscore.modules import ports, reputation
+    ctx = make_ctx(active=False)
+    ctx.cfg.threads, ctx.cfg.abuseipdb_key, ctx.cfg.greynoise_key, ctx.cfg.hibp_key = 2, "", "", ""
+    site = ctx.asset("www.example.com")
+    site.hosting_class, site.ips, site.cnames = "saas", ["192.0.2.50"], ["x.sites.vendor.example"]
+    mine = ctx.asset("vpn.example.com")
+    mine.hosting_class, mine.ips = "owned", ["198.51.100.7"]
+    looked_up, listed = [], []
+
+    def get(url, **kw):
+        looked_up.append(url)
+        ports_ = [3389, 443] if url.endswith("/192.0.2.50") else []
+        return resp(url, '{"ports": %s, "cpes": [], "vulns": [], "tags": []}' % ports_,
+                    headers={"Content-Type": "application/json"})
+    ctx.session = types.SimpleNamespace(headers={}, get=get)
+    with patched(reputation, _dnsbl=lambda c, ip: listed.append(ip), _domain_bl=lambda c: None,
+                 _abuseipdb=lambda c, ip: listed.append(ip), _greynoise=lambda c, ip: listed.append(ip)):
+        reputation.run(ctx)
+    assert sorted(u.rsplit("/", 1)[1] for u in looked_up) == ["192.0.2.50", "198.51.100.7"]
+    assert set(listed) == {"198.51.100.7"}, listed                   # no blocklists for the vendor IP
+    rdp = [f for f in ctx.findings if f.factor == "network" and f.asset == "192.0.2.50"]
+    assert rdp and rdp[0].confidence == "tentative" and "www.example.com" in rdp[0].evidence
+    assert ctx.flags.get("internetdb_ok")
+    ctx.cfg.client, ctx.cfg.authorization = "Example", ""
+    r = report.build_result(ctx, {"network"})
+    assert next(x for x in r["findings"] if x["asset"] == "192.0.2.50")["vendor"] == "a SaaS provider"
+    # live confirmation only ever touches IPs OpenScore port-scanned itself (never vendor IPs)
+    touched = []
+    with patched(ports, _connect=lambda ip, port, t: touched.append(ip) or False):
+        ports.confirm_passive_ports(ctx, scanned={"198.51.100.7"})
+    assert "192.0.2.50" not in touched
 
 if __name__ == "__main__":
     for name, fn in list(globals().items()):

@@ -197,8 +197,12 @@ def run(ctx) -> None:
             else:
                 ips.add(ip)
     ips = sorted(ips - skipped, key=lambda x: (":" in x, x))
+    # Vendor-hosted IPs (SaaS/CDN): Shodan's passive port data counts too (the organization chose the
+    # vendor), but IP blocklists and abuse feeds stay on the organization's own IPs: shared vendor
+    # IPs are listed for other tenants' traffic. Nothing here contacts the IPs themselves.
+    vendor = sorted(skipped - set(ips), key=lambda x: (":" in x, x))
     v4 = [i for i in ips if ":" not in i]
-    log.info("Reputation / InternetDB lookups for %d IPs (%d shared SaaS/CDN IPs skipped)", len(ips), len(skipped))
+    log.info("Reputation / InternetDB lookups for %d IPs; Shodan only for %d vendor-hosted IPs", len(ips), len(vendor))
 
     def one(ip):
         if ":" not in ip:
@@ -209,6 +213,7 @@ def run(ctx) -> None:
 
     with ThreadPoolExecutor(max_workers=min(4, ctx.cfg.threads)) as ex:
         list(ex.map(one, ips))
+        list(ex.map(lambda ip: _internetdb(ctx, ip), vendor))
 
     if not any(f.factor == "reputation" and f.severity != "pass" for f in ctx.findings) and v4:
         ctx.passed("rep_clean", ctx.domain, f"{len(ips)} IPs checked", source="reputation")

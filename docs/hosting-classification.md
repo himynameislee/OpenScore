@@ -13,11 +13,18 @@ treats each class differently.
 | **owned** | Infrastructure the organization runs: its own IP space, or a hosting provider OpenScore doesn't recognize | Yes | Yes | Yes |
 | **cloud** | IaaS/PaaS the organization configures itself (Azure, AWS, Google Cloud, DigitalOcean…) | Yes | Yes | Yes |
 | **cdn** | A CDN or edge proxy in front of the organization's site (Cloudflare, Akamai, Azure Front Door, CloudFront…) | Yes | No, unless `--scan-cdn` | Yes |
-| **saas** | A third-party service the organization uses but doesn't run (Microsoft 365, Salesforce, Okta, HubSpot, email senders…) | **No**, listed separately | No | No |
+| **saas** | A third-party service the organization uses but doesn't run (Microsoft 365, Salesforce, Okta, HubSpot, email senders…) | Yes, labeled with the vendor | No | No |
 | **unknown** | No hosting information could be found | Yes | Yes | Yes |
 
-Headers, cookies and TLS on a CDN host are still the organization's responsibility (they configure
-the CDN), so CDN hosts are scored; only the shared IPs are left alone.
+Every class is scored: the organization chose the vendor, and outside observers see the exposure
+either way. What the class changes is **what OpenScore may touch** (no port scans, probes or nuclei
+on vendor infrastructure) and **how the report labels it**: findings on saas and cdn hosts say
+"hosted by <vendor>", so you know whether the fix is a setting in the vendor's portal (many
+platforms let you set HSTS or security headers) or a request to the vendor. If the vendor can't
+change it, triage the finding as an accepted risk or compensating control.
+
+On vendor IPs, OpenScore uses Shodan's passive port data (tentative findings) but skips IP
+blocklists and abuse feeds, which list shared IPs for other tenants' traffic.
 
 ## How a host is classified
 
@@ -29,11 +36,15 @@ In this order, first match wins:
    `notoutlook.com` doesn't match `outlook.com`.
 2. **CNAME to a known CDN.** `azurefd.net`, `cloudfront.net`, `akamaiedge.net`, `fastly.net`,
    `cdn.cloudflare.net` and similar make it **cdn**.
-3. **Who owns the IP.** OpenScore looks up each IP's network (ASN) and its owner's name through
+3. **Documented SaaS address ranges.** A root domain can't have a CNAME, so a provider-hosted apex
+   is only recognizable by its IPs. Some providers' ranges are announced by another network (for
+   example HubSpot's `199.60.103.0/24` by Cloudflare), so OpenScore checks a short list of
+   documented ranges (HubSpot, Shopify, Netlify, Vercel) before the IP owner.
+4. **Who owns the IP.** OpenScore looks up each IP's network (ASN) and its owner's name through
    Team Cymru, and maps known names to a class: Cloudflare or Akamai → cdn, Amazon or Google →
    cloud, Shopify or Zendesk → saas, and so on. A host whose IPs all belong to SaaS providers is
    saas; otherwise the first of cdn, cloud, owned found among its IPs wins.
-4. **Anything else** is **owned** when the IP owner is unrecognized (dedicated or colocation
+5. **Anything else** is **owned** when the IP owner is unrecognized (dedicated or colocation
    hosting), and **unknown** when there's no ownership data at all.
 
 ### Microsoft
